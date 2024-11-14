@@ -103,7 +103,7 @@ python altenderfer-ssh-tool.py
 **Kyle Altenderfer**
 
 - **Website**: [https://altenderfer.io/](https://altenderfer.io/)
-- **GitHub**: [https://github.com/yourusername](https://github.com/altenderfer)
+- **GitHub**: [https://github.com/altendferfer](https://github.com/altenderfer)
 
 ## Tags
 
