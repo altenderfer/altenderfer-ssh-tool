@@ -1,3 +1,4 @@
+
 import paramiko
 import curses
 import threading
@@ -6,6 +7,13 @@ import logging.handlers
 import queue
 import textwrap
 import time
+import socket
+
+# Get supported algorithms from Paramiko
+all_kex_algs = list(paramiko.transport.Transport._preferred_kex)
+all_hostkey_algs = list(paramiko.transport.Transport._preferred_keys)
+all_ciphers = list(paramiko.transport.Transport._preferred_ciphers)
+all_macs = list(paramiko.transport.Transport._preferred_macs)
 
 # Exhaustive lists of algorithms
 all_kex_algs = [
@@ -69,35 +77,83 @@ def connect(params, log_queue):
     kex_algs = params['kex_algs']
     ciphers = params['ciphers']
     macs = params['macs']
-    # Initialize SSH client
-    client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    # Prepare disabled algorithms dict
-    disabled_algos = {
-        'kex': [alg for alg in all_kex_algs if alg not in kex_algs],
-        'hostkey': [alg for alg in all_hostkey_algs if alg not in host_key_algs],
-        'cipher': [alg for alg in all_ciphers if alg not in ciphers],
-        'mac': [alg for alg in all_macs if alg not in macs],
-    }
-    # Get the root logger
+
     logger = logging.getLogger()
     logger.debug("Attempting to connect...")
+
+    # Get supported algorithms from Paramiko
+    supported_kex_algs = paramiko.transport.Transport._preferred_kex
+    supported_hostkey_algs = paramiko.transport.Transport._preferred_keys
+    supported_ciphers = paramiko.transport.Transport._preferred_ciphers
+    supported_macs = paramiko.transport.Transport._preferred_macs
+
+    # Intersect selected algorithms with supported ones
+    kex_algs = [alg for alg in kex_algs if alg in supported_kex_algs]
+    host_key_algs = [alg for alg in host_key_algs if alg in supported_hostkey_algs]
+    ciphers = [alg for alg in ciphers if alg in supported_ciphers]
+    macs = [alg for alg in macs if alg in supported_macs]
+
+    # Check if any of the algorithm lists are empty
+    if not kex_algs:
+        logger.error("No supported KEX algorithms selected.")
+        return
+    if not host_key_algs:
+        logger.error("No supported Host Key algorithms selected.")
+        return
+    if not ciphers:
+        logger.error("No supported Ciphers selected.")
+        return
+    if not macs:
+        logger.error("No supported MACs selected.")
+        return
+
     try:
-        client.connect(
-            hostname=ip,
-            port=port,
-            username=username,
-            password=password,
-            look_for_keys=False,
-            allow_agent=False,
-            disabled_algorithms=disabled_algos,
-            banner_timeout=200,
-        )
-        logger.debug("Connection successful!")
+        # Create a socket and connect to the server
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(10)
+        sock.connect((ip, port))
+
+        # Create a Transport object
+        transport = paramiko.Transport(sock)
+        transport.connect_timeout = 10
+
+        # Set preferred algorithms
+        security_options = transport.get_security_options()
+        security_options.kex = kex_algs
+        security_options.ciphers = ciphers
+        security_options.digests = macs  # Changed from 'macs' to 'digests'
+        security_options.key_types = host_key_algs  # Use 'key_types'
+
+        # Log the algorithms being proposed
+        logger.debug(f"Proposed KEX algorithms: {kex_algs}")
+        logger.debug(f"Proposed Host Key algorithms: {host_key_algs}")
+        logger.debug(f"Proposed Ciphers: {ciphers}")
+        logger.debug(f"Proposed MACs (Digests): {macs}")
+
+        # Start the client
+        transport.start_client(timeout=10)
+
+        # Set missing host key policy
+        host_key = transport.get_remote_server_key()
+        client = paramiko.SSHClient()
+        client._transport = transport
+        client._host_keys.add(ip, host_key.get_name(), host_key)
+        client._host_keys_filename = None  # We don't have a host keys file
+
+        # Authenticate
+        if not transport.is_authenticated():
+            transport.auth_password(username=username, password=password)
+
+        if transport.is_authenticated():
+            logger.debug("Authentication successful!")
+            logger.debug("Connection successful!")
+            # You can open a session or perform other actions here
+        else:
+            logger.error("Authentication failed.")
     except Exception as e:
         logger.error(f"Connection failed: {e}")
     finally:
-        client.close()
+        transport.close()
         logger.debug("Connection closed.")
 
 def main(stdscr):
