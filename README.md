@@ -16,6 +16,11 @@ An interactive SSH client emulator built with Python, leveraging the `paramiko` 
 - **Color-Coded Interface**: Enhanced readability with color-coded logs and interface elements.
 - **Threaded Connection Handling**: SSH connections are handled in a separate thread to keep the UI responsive.
 
+### To-Do
+- When drilling down selected Algorithms, KEX, Ciphers, Macs -> Only traceback error appears (Update to have more detailed information)
+
+
+
 ## Installation
 
 ### Prerequisites
