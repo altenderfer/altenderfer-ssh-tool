@@ -31,7 +31,7 @@ An interactive SSH client emulator built with Python, leveraging the `paramiko` 
 
    ```bash
    git clone https://github.com/altenderfer/altenderfer-ssh-tool.git
-   cd ssh-client-emulator
+   cd altenderfer-ssh-tool
    ```
 
 2. **Install Required Packages**
